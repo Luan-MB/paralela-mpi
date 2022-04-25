@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <omp.h>
 
-#define ROWS 2
+
 // A utility function that returns
 // maximum of two integers
 int max(int a, int b) {return (a > b) ? a : b;}
@@ -33,15 +33,15 @@ void free_matrix(int** mat) {
 int knapsack(int MAXIMUM_CAPACITY, int wt[], int val[], int n)
 {
     // Matrix-based solution
-    int** V = get_matrix(ROWS, MAXIMUM_CAPACITY + 1);
+    int** V = get_matrix(2, MAXIMUM_CAPACITY + 1);
 
-    // V Stores, for each (1 + i, j), the best profit for a knapscak
+    // V Stores, for each ((i + 1) % 2, j), the best profit for a knapscak
     // of capacity `j` considering every item k such that (0 <= k < i)
     int i, j;
 
     // evaluate item `i`
     for(i = 0; i < n; i++) {
-        for(j = 1; j <= MAXIMUM_CAPACITY; j++) {
+        for(j = 0; j <= MAXIMUM_CAPACITY; j++) {
             if(wt[i] <= j) { // could put item in knapsack
                 int previous_value = V[i % 2][j];
                 int replace_items = val[i] + V[i % 2][j - wt[i]];
@@ -49,11 +49,11 @@ int knapsack(int MAXIMUM_CAPACITY, int wt[], int val[], int n)
                 // is it better to keep what we already got,
                 // or is it better to swap whatever we have in the bag that weights up to `j`
                 // and put item `i`?
-                V[(1 + i) % 2][j]= max(previous_value, replace_items);
+                V[(i + 1) % 2][j]= max(previous_value, replace_items);
             }
             else {
                 // can't put item `i`
-                V[(1 + i) % 2][j] = V[i % 2][j];
+                V[(i + 1) % 2][j] = V[i % 2][j];
 			}
         }
     }
@@ -80,6 +80,7 @@ int main()
 	}
     
     printf("%d\n", knapsack(W, wt, val, n));
+
     free(val);
     free(wt);
     return 0;
