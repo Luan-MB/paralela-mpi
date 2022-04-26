@@ -9,101 +9,6 @@
 // maximum of two integers
 int max(int a, int b) {return (a > b) ? a : b;}
 
-/* int** get_matrix(int rows, int columns) {   
-    int **mat;
-    int i;
-    
-    // for each line
-    mat = (int**) calloc(rows, sizeof (int*));
-    
-    mat[0] = (int*) calloc(rows * columns, sizeof (int));
-
-    // set up pointers to rows
-    for (i = 1; i < rows; i++)
-        mat[i] = mat[0] + i * columns;
-
-    return mat;
-}
-
-void free_matrix(int** mat) {
-    free(mat[0]);
-    free(mat);
-} */
-/* 
-int new_knapsack(int W, int wt[], int val[], int n) {
-
-    int *V = calloc(W + 1, sizeof(int));
-
-     for (int i = 1; i < n + 1; i++) {
-        for (int w = W; w >= 0; w--) {
-  
-            if (wt[i - 1] <= w)
-                // finding the maximum value
-                V[w] = max(V[w],
-                            V[w - wt[i - 1]] + val[i - 1]);
-        }
-    }
-    return V[W];
-} */
-
-int knapsack(int W, int wt[], int val[], int n)
-{
-    // Matrix-based solution
-    int *upper_row = calloc (W + 1, sizeof(int));
-    int *lower_row = calloc (W + 1, sizeof(int));
-
-    // V Stores, for each (1 + i, j), the best profit for a knapscak
-    // of capacity `j` considering every item k such that (0 <= k < i)
-    int i, j;
-
-    // evaluate item `i`
-    for(i = 0; i < n; i++) {
-        for(j = 1; j <= W; j++) {
-            if ((i % 2) == 0) {
-                if(wt[i] <= j) { // could put item in knapsack
-                    int previous_value = upper_row[j];
-                    int replace_items = val[i] + upper_row[j - wt[i]];
-
-                    // is it better to keep what we already got,
-                    // or is it better to swap whatever we have in the bag that weights up to `j`
-                    // and put item `i`?
-                    lower_row[j]= max(previous_value, replace_items);
-                }
-                else {
-                    // can't put item `i`
-                    lower_row[j] = upper_row[j];
-                }
-            } else {
-                if(wt[i] <= j) { // could put item in knapsack
-                    int previous_value = lower_row[j];
-                    int replace_items = val[i] + lower_row[j - wt[i]];
-
-                    // is it better to keep what we already got,
-                    // or is it better to swap whatever we have in the bag that weights up to `j`
-                    // and put item `i`?
-                    upper_row[j]= max(previous_value, replace_items);
-                }
-                else {
-                    // can't put item `i`
-                    upper_row[j] = lower_row[j];
-                }
-            }
-        }
-    }
-
-    int retval;
-
-    if ((n % 2) == 0)
-        retval = lower_row[W]; 
-    else
-        retval = upper_row[W];
-    
-    free(lower_row);
-    free(upper_row);
-    
-    return retval;
-}
-
 // Driver program to test above function
 int main(int argc, char **argv)
 {
@@ -118,7 +23,7 @@ int main(int argc, char **argv)
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    int sub_size;
+    int sub_size, division_rest;
     int n, W;
 
     int *val, *wt;
@@ -141,19 +46,44 @@ int main(int argc, char **argv)
         lower_row = calloc (W + 1, sizeof(int));
 
         sub_size = (W + 1) / num_procs;
+        division_rest = (W + 1) % num_procs;
     }
 
     MPI_Bcast(&sub_size, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
     MPI_Bcast(val, n, MPI_INT, ROOT, MPI_COMM_WORLD);
     MPI_Bcast(wt, n, MPI_INT, ROOT, MPI_COMM_WORLD);
 
+    int *aux_row;
+
+    if (rank != ROOT)
+        aux_row = malloc(sub_size * sizeof(int));
+
+    int counts[num_procs];
+    int offsets[num_procs];
+
+    if (rank == ROOT) {
+
+        int last_proc_size = sub_size + division_rest;
+        MPI_Send(&last_proc_size, 1, MPI_INT, num_procs - 1, STD_TAG, MPI_COMM_WORLD);
+
+        for (int i = 0; i < num_procs - 1; ++i) {
+            counts[i] = sub_size;
+            offsets[i] = i * sub_size;
+        }
+
+        counts[num_procs - 1] = last_proc_size;
+        offsets[num_procs - 1] = (num_procs - 1) * sub_size;
+    }
+
+    if (rank == num_procs - 1) {
+        MPI_Recv(&sub_size, 1, MPI_INT, ROOT, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+    }
+
     int *sub_upper_row = malloc(sub_size * sizeof(int));
     int *sub_lower_row = malloc(sub_size * sizeof(int));
 
-    MPI_Scatter(upper_row, sub_size, MPI_INT, sub_upper_row, sub_size, MPI_INT, ROOT, MPI_COMM_WORLD);
-    MPI_Scatter(lower_row, sub_size, MPI_INT, sub_lower_row, sub_size, MPI_INT, ROOT, MPI_COMM_WORLD);
-
-    int *aux_row = malloc(sub_size * sizeof(int));
+    MPI_Scatterv(upper_row, counts, offsets, MPI_INT, sub_upper_row, sub_size, MPI_INT, ROOT, MPI_COMM_WORLD);
+    MPI_Scatterv(lower_row, counts, offsets, MPI_INT, sub_lower_row, sub_size, MPI_INT, ROOT, MPI_COMM_WORLD);
 
     for(int i = 0; i < n; i++) {
 
@@ -219,17 +149,17 @@ int main(int argc, char **argv)
         MPI_Barrier(MPI_COMM_WORLD);
     }
 
-    MPI_Gather(sub_upper_row, sub_size, MPI_INT, upper_row, sub_size, MPI_INT, ROOT, MPI_COMM_WORLD);
-    MPI_Gather(sub_lower_row, sub_size, MPI_INT, lower_row, sub_size, MPI_INT, ROOT, MPI_COMM_WORLD);
+    MPI_Gatherv(sub_upper_row, sub_size, MPI_INT, upper_row, counts, offsets, MPI_INT, ROOT, MPI_COMM_WORLD);
+    MPI_Gatherv(sub_lower_row, sub_size, MPI_INT, lower_row, counts, offsets, MPI_INT, ROOT, MPI_COMM_WORLD);
 
     if (rank == ROOT) {
     
         int retval;
 
         if ((n % 2) == 0)
-            retval = lower_row[W]; 
+            retval = upper_row[W]; 
         else
-            retval = upper_row[W];
+            retval = lower_row[W];
 
         printf("%d\n", retval);
     
