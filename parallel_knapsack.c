@@ -24,6 +24,7 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     int sub_size, division_rest;
+    int max_weight;
     int n, W;
 
     int *val, *wt;
@@ -38,8 +39,13 @@ int main(int argc, char **argv)
 	wt = (int*) malloc(n * sizeof(int));
 
     if (rank == ROOT) {
+
+        max_weight = 0;
+
         for (int i = 0; i < n; ++i) {
-            fscanf(arq, "%d %d", &(val[i]), &(wt[i])); 
+            fscanf(arq, "%d %d", &(val[i]), &(wt[i]));
+            if (max_weight < wt[i])
+                max_weight = wt[i];
         }
 
         upper_row = calloc (W + 1, sizeof(int));
@@ -52,6 +58,7 @@ int main(int argc, char **argv)
     MPI_Bcast(&sub_size, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
     MPI_Bcast(val, n, MPI_INT, ROOT, MPI_COMM_WORLD);
     MPI_Bcast(wt, n, MPI_INT, ROOT, MPI_COMM_WORLD);
+    MPI_Bcast(&max_weight, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
 
     int *aux_row;
 
@@ -89,10 +96,10 @@ int main(int argc, char **argv)
 
         if ((i % 2) == 0) {
             if (rank != num_procs - 1) {
-                MPI_Send(&sub_upper_row[sub_size - 100], 100, MPI_INT, rank + 1, STD_TAG, MPI_COMM_WORLD);
+                MPI_Send(&sub_upper_row[sub_size - max_weight], max_weight, MPI_INT, rank + 1, STD_TAG, MPI_COMM_WORLD);
             }
             if (rank != ROOT) {
-                MPI_Recv(aux_row, 100, MPI_INT, rank - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                MPI_Recv(aux_row, max_weight, MPI_INT, rank - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             }
 
             for(int j = 0; j < sub_size; j++) {
@@ -103,7 +110,7 @@ int main(int argc, char **argv)
                     if (index >= 0)
                         replace_items = val[i] + sub_upper_row[index];
                     else
-                        replace_items = val[i] + aux_row[100 + index];
+                        replace_items = val[i] + aux_row[max_weight + index];
 
                     // is it better to keep what we already got,
                     // or is it better to swap whatever we have in the bag that weights up to `j`
@@ -118,10 +125,10 @@ int main(int argc, char **argv)
         
         } else {
             if (rank != num_procs - 1) {
-                MPI_Send(&sub_lower_row[sub_size - 100], 100, MPI_INT, rank + 1, STD_TAG, MPI_COMM_WORLD);
+                MPI_Send(&sub_lower_row[sub_size - max_weight], max_weight, MPI_INT, rank + 1, STD_TAG, MPI_COMM_WORLD);
             }
             if (rank != ROOT) {
-                MPI_Recv(aux_row, 100, MPI_INT, rank - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                MPI_Recv(aux_row, max_weight, MPI_INT, rank - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             }
             
             for(int j = 0; j < sub_size; j++) {
@@ -132,7 +139,7 @@ int main(int argc, char **argv)
                     if (index >= 0)
                         replace_items = val[i] + sub_lower_row[index];
                     else
-                        replace_items = val[i] + aux_row[100 + index];
+                        replace_items = val[i] + aux_row[max_weight + index];
 
                     // is it better to keep what we already got,
                     // or is it better to swap whatever we have in the bag that weights up to `j`
