@@ -23,7 +23,7 @@ int main(int argc, char **argv)
     int *upper_row, *lower_row;
     MPI_Status status;
     int rank;
-    FILE *arq = fopen("input.in", "r");
+    FILE *arq = fopen(argv[1], "r");
     double parallel_time, sequential_time;
 
     // initialize MPI
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
     int *aux_row;
 
     if (rank != ROOT)
-        aux_row = malloc(sub_size * sizeof(int));
+        aux_row = malloc(sub_size * rank * sizeof(int));
 
     int counts[num_procs];
     int offsets[num_procs];
@@ -119,11 +119,15 @@ int main(int argc, char **argv)
         if ((i % 2) == 0) {
             // send a part of the last calculated array to next process
             if (rank != num_procs - 1) {
-                MPI_Send(&sub_upper_row[sub_size - max_weight], max_weight, MPI_INT, rank + 1, STD_TAG, MPI_COMM_WORLD);
+                for (int k = (rank + 1); k < num_procs; ++k) {
+                    MPI_Send(sub_upper_row, sub_size, MPI_INT, k, STD_TAG, MPI_COMM_WORLD);
+                }
             }
             // receive a part of the last calculated array from the previous process
             if (rank != ROOT) {
-                MPI_Recv(aux_row, max_weight, MPI_INT, rank - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                for (int k = 0; k < rank; ++k) {
+                    MPI_Recv(&aux_row[k * sub_size], sub_size, MPI_INT, k, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                }
             }
 
             for(int j = 0; j < sub_size; j++) {
@@ -137,7 +141,7 @@ int main(int argc, char **argv)
                     // if index is out of process sub array bounds
                     // get value from aux array
                     else
-                        replace_items = val[i] + aux_row[max_weight + index];
+                        replace_items = val[i] + aux_row[sub_size + index];
 
                     // is it better to keep what we already got,
                     // or is it better to swap whatever we have in the bag that weights up to `j`
@@ -153,11 +157,15 @@ int main(int argc, char **argv)
         } else {
             // send a part of the last calculated array to next process
             if (rank != num_procs - 1) {
-                MPI_Send(&sub_lower_row[sub_size - max_weight], max_weight, MPI_INT, rank + 1, STD_TAG, MPI_COMM_WORLD);
+                for (int k = (rank + 1); k < num_procs; ++k) {
+                    MPI_Send(sub_lower_row, sub_size, MPI_INT, k, STD_TAG, MPI_COMM_WORLD);
+                }
             }
             // receive a part of the last calculated array from the previous process
             if (rank != ROOT) {
-                MPI_Recv(aux_row, max_weight, MPI_INT, rank - 1, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                for (int k = 0; k < rank; ++k) {
+                    MPI_Recv(&aux_row[k * sub_size], sub_size, MPI_INT, k, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+                }
             }
 
             for(int j = 0; j < sub_size; j++) {
@@ -171,7 +179,7 @@ int main(int argc, char **argv)
                     // if index is out of process sub array bounds
                     // get value from aux array
                     else
-                        replace_items = val[i] + aux_row[max_weight + index];
+                        replace_items = val[i] + aux_row[sub_size + index];
 
                     // is it better to keep what we already got,
                     // or is it better to swap whatever we have in the bag that weights up to `j`
