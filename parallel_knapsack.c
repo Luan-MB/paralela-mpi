@@ -115,15 +115,15 @@ int main(int argc, char **argv)
     }
 
     for(int i = 0; i < n; i++) {
-
+        // if line i is even
         if ((i % 2) == 0) {
-            // send a part of the last calculated array to next process
+            // send last calculated array to next processes
             if (rank != num_procs - 1) {
                 for (int k = (rank + 1); k < num_procs; ++k) {
                     MPI_Send(sub_upper_row, sub_size, MPI_INT, k, STD_TAG, MPI_COMM_WORLD);
                 }
             }
-            // receive a part of the last calculated array from the previous process
+            // receive last calculated array from previous processes
             if (rank != ROOT) {
                 for (int k = 0; k < rank; ++k) {
                     MPI_Recv(&aux_row[k * sub_size], sub_size, MPI_INT, k, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
@@ -141,7 +141,7 @@ int main(int argc, char **argv)
                     // if index is out of process sub array bounds
                     // get value from aux array
                     else
-                        replace_items = val[i] + aux_row[sub_size + index];
+                        replace_items = val[i] + aux_row[rank * sub_size + index];
 
                     // is it better to keep what we already got,
                     // or is it better to swap whatever we have in the bag that weights up to `j`
@@ -153,7 +153,7 @@ int main(int argc, char **argv)
                     sub_lower_row[j] = sub_upper_row[j];
                 }
             }
-
+        // if line i is odd
         } else {
             // send a part of the last calculated array to next process
             if (rank != num_procs - 1) {
@@ -179,7 +179,7 @@ int main(int argc, char **argv)
                     // if index is out of process sub array bounds
                     // get value from aux array
                     else
-                        replace_items = val[i] + aux_row[sub_size + index];
+                        replace_items = val[i] + aux_row[rank * sub_size + index];
 
                     // is it better to keep what we already got,
                     // or is it better to swap whatever we have in the bag that weights up to `j`

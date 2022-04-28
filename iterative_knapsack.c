@@ -9,12 +9,10 @@ int max(int a, int b) {return (a > b) ? a : b;}
 
 int knapsack(int MAXIMUM_CAPACITY, int wt[], int val[], int n)
 {
+
+    // start both arrays with 0s
     int *upper_row = calloc(MAXIMUM_CAPACITY + 1, sizeof(int));
     int *lower_row = calloc(MAXIMUM_CAPACITY + 1, sizeof(int));
-
-    // V Stores, for each ((i + 1) % 2, j), the best profit for a knapscak
-    // of capacity `j` considering every item k such that (0 <= k < i)
-    int i, j;
 
     // evaluate item `i`
     for(int i = 0; i < n; i++) {
